@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "20368c30-e888-4ed9-b3ac-dc24a3bb225d",
+      "name": "When clicking Test workflow",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1120, 16]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== อีเมลตัวอย่างทั้ง 10 (ข้อมูลสมมติ ใช้สอน) =====\nconst emails = [\n  \"somchai_jaidee2515@gmail.com\",\n  \"somying.rakrian@gmail.com\",\n  \"mana_pakpian999@gmail.com\",\n  \"piti.yindee.cute@gmail.com\",\n  \"weera_klahan007@gmail.com\",\n  \"choojai.kayan@gmail.com\",\n  \"somsak.mungmee2540@gmail.com\",\n  \"naree_ngamdee_88@gmail.com\",\n  \"boonmee.meesuk@gmail.com\",\n  \"thongdee_petch123@gmail.com\"\n];\n\nconst seen = new Set();\nconst users = [];\nconst skipped = [];\n\nfor (const raw of emails) {\n  const email = String(raw || '').trim().toLowerCase();\n  if (!email || !email.includes('@')) {\n    skipped.push({ email: raw, reason: 'invalid email' });\n    continue;\n  }\n  if (seen.has(email)) {\n    skipped.push({ email: raw, reason: 'duplicate' });\n    continue;\n  }\n  seen.add(email);\n  users.push({ email: email });\n}\n\nreturn [{ json: { users: users, count: users.length, skipped: skipped } }];"
+      },
+      "id": "4a8b077c-a28b-483c-8c47-91a91eb6ee76",
+      "name": "Format User List1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-688, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/api/v1/users",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.users) }}",
+        "options": {}
+      },
+      "id": "ee475b9c-ab08-43ab-adb7-ef427489edc6",
+      "name": "Invite Users via n8n API1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-464, 32],
+      "credentials": {
+        "httpHeaderAuth": { "id": "LSFOU9qiSW4uBfmr", "name": "Header Auth account" }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1CmpSJFQojceQkJQU1f4J5e-uGpwTyER35hBrvo_iG9g",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "options": {}
+      },
+      "id": "2e7d4756-2a86-4465-89ee-7a59b48b665d",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [-912, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "v3Pi1q5L4FyeDtGk", "name": "Google Sheets account" }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking Test workflow": {
+      "main": [[{ "node": "Format User List1", "type": "main", "index": 0 }]]
+    },
+    "Format User List1": {
+      "main": [[{ "node": "Invite Users via n8n API1", "type": "main", "index": 0 }]]
+    },
+    "Read Google Sheet": {
+      "main": [[{ "node": "Format User List1", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "84365cb96a37d13f47ef6bf9b21a123dffc27616cf6818a224105a14e8057f77"
+  }
+}
