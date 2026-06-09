@@ -1,0 +1,106 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -560,
+        -32
+      ],
+      "id": "4d79bfac-c76f-468a-ba00-accc94f1ea04",
+      "name": "When chat message received",
+      "webhookId": "1827d2d9-5a5e-47f3-9c9e-74c06b56e796"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "คุณคือผู้ช่วย AI อัจฉริยะที่ทำงานอยู่บนระบบ n8n \n\nหน้าที่ของคุณ:\n- ตอบคำถามของผู้ใช้ด้วยภาษาไทยที่เข้าใจง่าย เป็นกันเอง และสุภาพ\n- หากผู้ใช้ให้ช่วยระดมความคิด (Brainstorm) ให้สรุปเป็นข้อๆ (Bullet points) เพื่อให้อ่านง่าย\n\nข้อห้าม:\n- ตอบให้กระชับ ยาวไม่เกิน 3-4 ประโยคต่อหนึ่งข้อความ (ห้ามพิมพ์ยาวเกินไป)\n- ถ้าไม่รู้คำตอบ ให้บอกตรงๆ ว่าไม่ทราบข้อมูล ห้ามเดาหรือสร้างข้อมูลเท็จ"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -144,
+        -32
+      ],
+      "id": "752bee03-2a62-46cd-9670-d03b57db78ee",
+      "name": "AI Agent",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3-8b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        176
+      ],
+      "id": "d2512cca-df5d-4aba-b197-1856253192d3",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "frzGvEsdVNUSPPze",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -112,
+        176
+      ],
+      "id": "b46a5dff-4e7d-4ee9-9777-eac1b9f3e21d",
+      "name": "Simple Memory"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "84365cb96a37d13f47ef6bf9b21a123dffc27616cf6818a224105a14e8057f77"
+  }
+}
