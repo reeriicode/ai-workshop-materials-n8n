@@ -1,0 +1,870 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ingest-n8n-docs",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data",
+          "rawBody": false
+        }
+      },
+      "id": "65254c40-d4d8-4d0d-afce-a0994248ed0e",
+      "name": "Webhook (รับไฟล์/URL)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        512
+      ],
+      "webhookId": "c79f4d73-00a3-46f3-85d7-d30876ebd07d"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === ตรวจสอบ input mode + เตรียมข้อมูล + detect file type ===\nconst item = $input.item;\nconst body = (item.json && item.json.body) ? item.json.body : (item.json || {});\n\nlet binaryKey = null;\nif (item.binary && Object.keys(item.binary).length > 0) {\n  binaryKey = Object.keys(item.binary)[0];\n}\n\nlet mode, url, originalFileName;\n\nif (binaryKey) {\n  mode = 'file';\n  url = null;\n  originalFileName = item.binary[binaryKey].fileName || 'upload.pdf';\n} else if (body.url) {\n  mode = 'url';\n  url = body.url;\n  originalFileName = body.filename || url.split('/').pop().split('?')[0] || 'from_url';\n} else {\n  throw new Error('ต้องส่งไฟล์ (multipart/form-data) หรือ URL ใน JSON body { \"url\": \"https://...\" }');\n}\n\n// === Detect file extension + category ===\nconst lastDot = originalFileName.lastIndexOf('.');\nlet ext = lastDot > 0 ? originalFileName.substring(lastDot + 1).toLowerCase() : '';\n\n// ถ้าไม่มี extension จาก filename → guess จาก URL pattern\nif (!ext && url) {\n  if (url.match(/\\.(pdf|docx?|pptx?|xlsx?|html?|txt|md|jpg|jpeg|png|tif|tiff|bmp|webp)(\\?|$)/i)) {\n    ext = url.match(/\\.([a-z0-9]+)(\\?|$)/i)[1].toLowerCase();\n  }\n}\n\n// แบ่ง category\nconst IMAGE_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'webp', 'ppm', 'pnm'];\nconst OFFICE_EXT = ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'];\nconst WEB_EXT = ['html', 'htm', 'xhtml'];\nconst TEXT_EXT = ['txt', 'md', 'markdown', 'csv'];\n\nlet category;\nif (ext === 'pdf') category = 'pdf';\nelse if (IMAGE_EXT.includes(ext)) category = 'image';\nelse if (OFFICE_EXT.includes(ext)) category = 'office';\nelse if (WEB_EXT.includes(ext)) category = 'web';\nelse if (TEXT_EXT.includes(ext)) category = 'text';\nelse category = 'unknown';\n\nconst ocrAble = (category === 'pdf' || category === 'image');\n\n// === Sanitize filename ===\nconst isAsciiOnly = /^[\\x00-\\x7F]*$/.test(originalFileName);\nconst hasSpecialChars = /[\\s'\"\\\\\\/&?#%]/.test(originalFileName);\nconst needRename = !isAsciiOnly || hasSpecialChars || !ext;\n\nlet safeFileName;\nif (needRename) {\n  const timestamp = Date.now();\n  const random = Math.random().toString(36).substring(2, 10);\n  const safeExt = ext || 'pdf';\n  safeFileName = `doc_${timestamp}_${random}.${safeExt}`;\n} else {\n  safeFileName = originalFileName;\n}\n\nconsole.log(`📥 Input: mode=${mode}, ext=${ext}, category=${category}, ocr-able=${ocrAble}`);\nconsole.log(`   original=${originalFileName}, safe=${safeFileName}`);\n\nconst output = {\n  json: {\n    mode, url,\n    original_filename: originalFileName,\n    safe_filename: safeFileName,\n    file_extension: ext,\n    file_category: category,\n    ocr_able: ocrAble,\n    was_renamed: needRename,\n    uploaded_at: new Date().toISOString()\n  }\n};\n\nif (binaryKey) {\n  const srcBinary = item.binary[binaryKey];\n  srcBinary.fileName = safeFileName;\n  output.binary = { data0: srcBinary };\n}\n\nreturn output;"
+      },
+      "id": "eccb2a81-8e24-4254-ba0b-cf691d5b0c15",
+      "name": "ตรวจสอบ Input Mode",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "url",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "is-url-mode"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3dda9be2-8f6e-422f-a515-9494e95272a5",
+      "name": "IF: URL mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "549ef8c2-92da-43d4-a6a2-b408f3615b75",
+      "name": "ดาวน์โหลด URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1280,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Normalize binary หลัง URL download + redetect file type จาก mime ===\nconst item = $input.item;\nconst sourceKey = Object.keys(item.binary || {})[0];\nif (!sourceKey) throw new Error('ไม่พบ binary หลัง download URL');\n\nconst meta = $('ตรวจสอบ Input Mode').item.json;\nconst srcBinary = item.binary[sourceKey];\n\n// === Redetect category จาก mime type (สำคัญ! URL อาจไม่บอก extension จริง) ===\nconst mime = (srcBinary.mimeType || '').toLowerCase();\nlet redetectedCategory = meta.file_category;\nlet redetectedExt = meta.file_extension;\n\nif (mime.includes('pdf')) { redetectedCategory = 'pdf'; redetectedExt = 'pdf'; }\nelse if (mime.startsWith('image/')) {\n  redetectedCategory = 'image';\n  redetectedExt = mime.split('/')[1].split(';')[0];\n  if (redetectedExt === 'jpeg') redetectedExt = 'jpg';\n}\nelse if (mime.includes('html')) { redetectedCategory = 'web'; redetectedExt = 'html'; }\nelse if (mime.includes('wordprocessingml') || mime.includes('msword')) { redetectedCategory = 'office'; redetectedExt = 'docx'; }\nelse if (mime.includes('presentationml')) { redetectedCategory = 'office'; redetectedExt = 'pptx'; }\nelse if (mime.includes('spreadsheetml') || mime.includes('ms-excel')) { redetectedCategory = 'office'; redetectedExt = 'xlsx'; }\nelse if (mime.includes('text/plain') || mime.includes('text/markdown')) { redetectedCategory = 'text'; redetectedExt = mime.includes('markdown') ? 'md' : 'txt'; }\n\n// ถ้า extension เดิม unknown แต่ตรวจเจอจาก mime → ใช้ใหม่\nif (meta.file_category === 'unknown' && redetectedCategory !== 'unknown') {\n  console.log(`🔍 Redetected from mime: ${meta.file_extension} → ${redetectedExt} (${redetectedCategory})`);\n  meta.file_extension = redetectedExt;\n  meta.file_category = redetectedCategory;\n  meta.ocr_able = (redetectedCategory === 'pdf' || redetectedCategory === 'image');\n  // อัพเดท safe_filename ให้มี extension ใหม่\n  const base = meta.safe_filename.replace(/\\.[^.]+$/, '');\n  meta.safe_filename = `${base}.${redetectedExt}`;\n}\n\nsrcBinary.fileName = meta.safe_filename;\n\nconsole.log(`📦 URL binary: key=${sourceKey}, size=${srcBinary.fileSize}, mime=${mime}, category=${meta.file_category}`);\n\nreturn {\n  json: meta,\n  binary: { data0: srcBinary }\n};"
+      },
+      "id": "f36c3975-507d-4aaa-8af5-af90041e32d7",
+      "name": "Normalize Binary (URL)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ocr_able }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "is-ocr-able"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a5950975-b459-4560-ac0e-96c4a7b2e0ed",
+      "name": "IF: ไฟล์ OCR ได้?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === แปลง binary เป็น base64 data URI สำหรับ Mistral OCR ===\n// รองรับทั้ง binary mode = memory (มี .data ตรง ๆ) และ filesystem (อ่านผ่าน helper)\n// meta จาก input โดยตรง (URL mode = ได้ category ที่ redetect แล้วจาก Normalize Binary)\nconst meta = $input.first().json;\n\nlet b64;\nconst inBin = $input.first().binary;\nif (inBin && inBin.data0 && inBin.data0.data && inBin.data0.data.length > 50) {\n  // memory mode: binary.data0.data เป็น base64 อยู่แล้ว\n  b64 = inBin.data0.data;\n} else {\n  // filesystem mode: อ่าน buffer แล้วแปลงเป็น base64\n  const buffer = await this.helpers.getBinaryDataBuffer(0, 'data0');\n  b64 = buffer.toString('base64');\n}\n\nconst category = meta.file_category; // 'pdf' หรือ 'image'\n\n// Mistral OCR ต้องการ document.type ต่างกันระหว่าง pdf กับ image\nlet mimeType, documentObj;\nif (category === 'image') {\n  let ext = (meta.file_extension || 'png').toLowerCase();\n  if (ext === 'jpg') ext = 'jpeg';\n  if (ext === 'tif') ext = 'tiff';\n  mimeType = `image/${ext}`;\n  documentObj = { type: 'image_url', image_url: `data:${mimeType};base64,${b64}` };\n} else {\n  mimeType = 'application/pdf';\n  documentObj = { type: 'document_url', document_url: `data:${mimeType};base64,${b64}` };\n}\n\nconsole.log(`🤖 เตรียม Mistral OCR: category=${category}, mime=${mimeType}, base64=${b64.length} chars`);\n\nreturn {\n  json: {\n    ...meta,\n    mistral_mime: mimeType,\n    mistral_document: documentObj\n  }\n};"
+      },
+      "id": "63224d3d-9bb1-463c-92e3-d8aba89e9cfa",
+      "name": "Mistral: แปลง Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer jC85n0vn9gk5R1PTGIEOD19xcoZtxQzL"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"mistral-ocr-latest\", \"document\": $json.mistral_document, \"include_image_base64\": false } }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "ed3cd017-1744-4dfa-bb87-ccfedfa23670",
+      "name": "Mistral OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1952,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "text",
+              "name": "text",
+              "value": "={{ ($json.pages || []).map(p => p.markdown || '').join('\\n\\n').replace(/([\\u0E00-\\u0E7F])\\s+(?=[\\u0E00-\\u0E7F])/g, '$1') }}",
+              "type": "string"
+            },
+            {
+              "id": "len",
+              "name": "text_length",
+              "value": "={{ ($json.pages || []).map(p => p.markdown || '').join('\\n\\n').length }}",
+              "type": "number"
+            },
+            {
+              "id": "status",
+              "name": "doc_status",
+              "value": "={{ $json.model || 'mistral-ocr' }}",
+              "type": "string"
+            },
+            {
+              "id": "original",
+              "name": "original_filename",
+              "value": "={{ $('Mistral: แปลง Base64').item.json.original_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "safe",
+              "name": "safe_filename",
+              "value": "={{ $('Mistral: แปลง Base64').item.json.safe_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "cat",
+              "name": "file_category",
+              "value": "={{ $('Mistral: แปลง Base64').item.json.file_category }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7495a641-1c8c-4ee6-8d4a-f3e820c04946",
+      "name": "Normalize Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2176,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "final-text-check"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4da59747-bd8a-4090-919c-12402c6e64ab",
+      "name": "มีข้อความไหม? (final)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1c537a21-7185-4687-9780-cf6e057e19d8",
+      "name": "Loop Over Chunks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3072,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=คุณคือผู้เชี่ยวชาญด้านการจัดทำดัชนีเอกสารทุเรียน งานของคุณคือสร้างบริบทสั้นๆ ที่ช่วยให้ระบบค้นคืนข้อมูล (RAG) ทำงานได้แม่นยำขึ้น\n\n=== บริบทของเอกสารทั้งฉบับ ===\nชื่อเอกสาร: {{ $json.original_filename }}\nประเภท: {{ $json.doc_meta.doc_type }}\nหัวข้อ: {{ $json.doc_meta.topic }}\n\nสรุปเอกสารโดยรวม:\n{{ $json.doc_summary_for_context }}\n\n=== ชิ้นข้อความ (chunk) ที่ {{ $json.chunk_index }}/{{ $json.chunk_total }} ===\n{{ $json.chunk_text }}\n\n=== คำสั่ง ===\nจงเขียนบริบทสั้นๆ 2-3 ประโยค เพื่ออธิบายว่า:\n\n1. ชิ้นข้อความนี้กล่าวถึงประเด็นหรือสาระสำคัญใดเกี่ยวกับทุเรียน\n2. ชิ้นข้อความนี้น่าจะอยู่ในส่วนใดของเอกสาร (เช่น บทนำ วิธีการศึกษา ผลการวิเคราะห์ ข้อเสนอแนะ ภาคผนวก)\n3. ชิ้นข้อความนี้เกี่ยวข้องกับด้านใด เช่น พันธุ์ทุเรียน การเพาะปลูก การจัดการสวน การผลิต การตลาด คุณภาพผลผลิต โรคและแมลง งานวิจัย หรือข้อมูลสถิติ\n\nเน้นคำสำคัญ ชื่อพันธุ์ทุเรียน ชื่อพื้นที่ ชื่อโครงการ ชื่อหน่วยงาน ตัวเลขสำคัญ และคำศัพท์เฉพาะที่ปรากฏใน chunk เพื่อเพิ่มประสิทธิภาพการค้นหา\n\nตอบเฉพาะข้อความบริบทภาษาไทย 2-3 ประโยค ห้ามใส่คำนำ ห้ามใส่คำลงท้าย ห้ามกล่าวถึงองค์กร หน่วยงาน หรือข้อมูลใด ๆ ที่ไม่ได้ปรากฏใน chunk และห้ามคาดเดาข้อมูลนอกเหนือจากเนื้อหาที่ได้รับ"
+      },
+      "id": "d6b224a8-bd66-44b0-ad84-21cb2374aa87",
+      "name": "AI: Contextual Summary",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        3296,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === รวม chunk + context + metadata ===\nconst contextSummary = ($input.item.json.text || $input.item.json.output || '').trim();\nconst chunkData = $('Loop Over Chunks').item.json;\nconst chunk = chunkData.chunk_text;\nconst chunkIdx = chunkData.chunk_index;\nconst chunkTotal = chunkData.chunk_total;\nconst docMeta = chunkData.doc_meta || {};\n\nconsole.log(`🔗 chunk #${chunkIdx}/${chunkTotal - 1} (${chunk.length} chars + ctx ${contextSummary.length})`);\n\nconst enrichedText = contextSummary\n  ? `[บริบท]\\n${contextSummary}\\n\\n[เนื้อหา]\\n${chunk}`\n  : chunk;\n\nreturn {\n  json: {\n    text: enrichedText,\n    filename: chunkData.original_filename,\n    safe_filename: chunkData.safe_filename,\n    file_category: chunkData.file_category || 'unknown',\n    doc_type: docMeta.doc_type || 'อื่นๆ',\n    department: docMeta.department || 'ไม่ระบุ',\n    faculty: docMeta.faculty || 'ไม่ระบุ',\n    topic: docMeta.topic || '',\n    doc_summary: docMeta.doc_summary || '',\n    academic_year: docMeta.academic_year || 'ไม่ระบุ',\n    budget_year: docMeta.budget_year || 'ไม่ระบุ',\n    target_audience: docMeta.target_audience || 'ไม่ระบุ',\n    language: docMeta.language || 'ไทย',\n    keywords: Array.isArray(docMeta.keywords) ? docMeta.keywords : [],\n    keywords_string: Array.isArray(docMeta.keywords) ? docMeta.keywords.join(',') : '',\n    chunk_index: chunkIdx,\n    chunk_total: chunkTotal,\n    chunk_text: chunk,\n    chunk_context: contextSummary,\n    chunk_char_count: chunk.length,\n    ingested_at: chunkData.ingested_at\n  }\n};"
+      },
+      "id": "ae8c36ff-a8f2-4c71-8841-82d9b234f8ce",
+      "name": "รวม chunk + context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## RAG Pipeline v5 — Mistral OCR (เครื่องมือเดียว)\n**รองรับ:** PDF (ทั้งแบบ text และ scan) + รูปภาพ (jpg, png, tif, bmp, webp)\n\n**ขั้นตอน:**\n1. รับไฟล์ (upload) หรือ URL\n2. ตรวจประเภท → ถ้าเป็น PDF/รูปภาพ → แปลง base64 → **Mistral OCR** (mistral-ocr-latest) → ได้ markdown ตรง ๆ\n3. ถ้าเป็นไฟล์อื่น (docx/pptx/xlsx/html/txt) → ตอบ Error (ตัด Docling ออกแล้ว จึงไม่รองรับ)\n4. → แยก metadata → แบ่ง chunk → contextual summary → ฝังลง Qdrant (sojvp)\n\n⚠️ ใส่ Mistral API key ที่ node **\"Mistral OCR\"** (header Authorization: Bearer <key>)\nสมัครฟรีที่ console.mistral.ai (Experiment tier — ยืนยันเบอร์โทร ไม่ต้องผูกบัตร)",
+        "height": 472,
+        "width": 480
+      },
+      "id": "d7397165-a490-4e0c-98f8-13bd495b8e5f",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=คุณคือผู้เชี่ยวชาญด้านการจัดทำดัชนีเอกสารทุเรียน\n\nจงอ่านเอกสารต่อไปนี้แล้ววิเคราะห์ metadata อย่างละเอียด ตอบเป็น JSON เท่านั้น ห้ามมีข้อความนำหน้าหรือต่อท้าย\n\nเอกสาร:\n{{ $json.text.substring(0, 5000) }}\n\nรูปแบบ JSON ที่ต้องการ:\n{\"doc_type\":\"อื่นๆ\",\"department\":\"องค์กรทุเรียน\",\"faculty\":\"ไม่ระบุ\",\"topic\":\"เอกสารเกี่ยวกับการบริหารจัดการและพัฒนาทุเรียน\",\"doc_summary\":\"ไม่พบเนื้อหาเอกสารจริงสำหรับการวิเคราะห์ metadata โดยมีเพียงข้อความตัวอย่างหรือ placeholder เท่านั้น จึงไม่สามารถสรุปรายละเอียดเชิงเนื้อหาได้อย่างถูกต้อง ข้อมูลที่ระบุในผลลัพธ์นี้เป็นค่าเริ่มต้นสำหรับเอกสารที่เกี่ยวข้องกับทุเรียน ควรส่งเนื้อหาเอกสารฉบับเต็มเพื่อให้สามารถวิเคราะห์และจัดทำดัชนีได้อย่างแม่นยำ\",\"academic_year\":\"ไม่ระบุ\",\"budget_year\":\"ไม่ระบุ\",\"target_audience\":\"ผู้เกี่ยวข้องกับการผลิต วิจัย พัฒนา หรือบริหารจัดการทุเรียน\",\"keywords\":[\"ทุเรียน\",\"องค์กรทุเรียน\",\"การจัดการทุเรียน\",\"พัฒนาทุเรียน\",\"ฐานข้อมูลทุเรียน\"],\"language\":\"ไทย\"}"
+      },
+      "id": "0b7ae45a-f850-453c-9b11-fb25a89bf1c5",
+      "name": "AI: Document Metadata1",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        2624,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === แบ่งข้อความเป็น chunk + เตรียม metadata ระดับเอกสาร ===\nconst nt = $('Normalize Text').item.json;\nconst rawText = nt.text;\nconst originalFilename = nt.original_filename;\nconst safeFilename = nt.safe_filename;\nconst fileCategory = nt.file_category;\nconsole.log('📄 ใช้ text จาก Mistral OCR');\n\nlet docMeta = {};\ntry {\n  const llmOut = $input.item.json.text || $input.item.json.output || $input.item.json.response || '{}';\n  docMeta = typeof llmOut === 'string' ? JSON.parse(llmOut) : llmOut;\n} catch (e) {\n  console.log('Parse doc metadata failed:', e.message);\n  docMeta = { doc_type: 'อื่นๆ', department: 'ไม่ระบุ', faculty: 'ไม่ระบุ', keywords: [] };\n}\n\nfunction splitText(text, size = 1200, overlap = 200) {\n  if (!text || text.length <= size) return [text || ''];\n  const separators = ['\\n\\n', '\\n', '. ', ' '];\n  function split(t, sepIdx) {\n    if (t.length <= size) return [t];\n    if (sepIdx >= separators.length) {\n      const out = [];\n      const step = Math.max(1, size - overlap);\n      for (let i = 0; i < t.length; i += step) out.push(t.substring(i, i + size));\n      return out;\n    }\n    const sep = separators[sepIdx];\n    const parts = t.split(sep);\n    const chunks = [];\n    let current = '';\n    for (const p of parts) {\n      const joined = current ? current + sep + p : p;\n      if (joined.length > size && current) { chunks.push(current); current = p; }\n      else current = joined;\n    }\n    if (current) chunks.push(current);\n    const final = [];\n    for (const c of chunks) {\n      if (c.length > size) final.push(...split(c, sepIdx + 1));\n      else final.push(c);\n    }\n    return final;\n  }\n  let chunks = split(text, 0);\n  if (overlap > 0 && chunks.length > 1) {\n    const out = [chunks[0]];\n    for (let i = 1; i < chunks.length; i++) {\n      const prev = chunks[i - 1];\n      const tail = prev.substring(Math.max(0, prev.length - overlap));\n      out.push(tail + chunks[i]);\n    }\n    chunks = out;\n  }\n  return chunks;\n}\n\nconst chunks = splitText(rawText, 1200, 200);\nconst docSummaryForContext = docMeta.doc_summary || rawText.substring(0, 1500);\nconsole.log(`✂️ แบ่งเอกสาร \"${originalFilename}\" (${fileCategory}) → ${chunks.length} chunks (${rawText.length} chars)`);\n\nreturn chunks.map((chunkText, idx) => ({\n  json: {\n    chunk_text: chunkText,\n    chunk_index: idx,\n    chunk_total: chunks.length,\n    doc_summary_for_context: docSummaryForContext,\n    original_filename: originalFilename,\n    safe_filename: safeFilename,\n    file_category: fileCategory,\n    doc_meta: docMeta,\n    ingested_at: new Date().toISOString()\n  }\n}));"
+      },
+      "id": "a5c35e46-11e9-4232-a298-d7e57bc2ebf1",
+      "name": "แบ่ง Chunk + Doc Metadata1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "sojvp",
+          "mode": "list",
+          "cachedResultName": "sojvp"
+        },
+        "options": {}
+      },
+      "id": "b153f714-e894-43ef-a2b5-f413dd2171ec",
+      "name": "Qdrant Insert1",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [
+        3744,
+        272
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "PbdMB539b6hiQ9ap",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.text }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "filename",
+                "value": "={{ $json.filename }}"
+              },
+              {
+                "name": "file_category",
+                "value": "={{ $json.file_category }}"
+              },
+              {
+                "name": "doc_type",
+                "value": "={{ $json.doc_type }}"
+              },
+              {
+                "name": "department",
+                "value": "={{ $json.department }}"
+              },
+              {
+                "name": "faculty",
+                "value": "={{ $json.faculty }}"
+              },
+              {
+                "name": "topic",
+                "value": "={{ $json.topic }}"
+              },
+              {
+                "name": "academic_year",
+                "value": "={{ $json.academic_year }}"
+              },
+              {
+                "name": "budget_year",
+                "value": "={{ $json.budget_year }}"
+              },
+              {
+                "name": "target_audience",
+                "value": "={{ $json.target_audience }}"
+              },
+              {
+                "name": "language",
+                "value": "={{ $json.language }}"
+              },
+              {
+                "name": "keywords",
+                "value": "={{ $json.keywords_string }}"
+              },
+              {
+                "name": "chunk_index",
+                "value": "={{ $json.chunk_index }}"
+              },
+              {
+                "name": "chunk_total",
+                "value": "={{ $json.chunk_total }}"
+              },
+              {
+                "name": "chunk_context",
+                "value": "={{ $json.chunk_context }}"
+              },
+              {
+                "name": "doc_summary",
+                "value": "={{ $json.doc_summary }}"
+              },
+              {
+                "name": "ingested_at",
+                "value": "={{ $json.ingested_at }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f613280d-504d-4321-9e15-3384fc7ebdc1",
+      "name": "Data Loader1",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        3968,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 50000,
+        "options": {}
+      },
+      "id": "18cdbff1-ba68-4fde-b2d0-3cbf96a6f1c6",
+      "name": "Text Splitter (no-op)1",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        3968,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "1a2435a2-6551-4286-a2cf-ddc687aec02d",
+      "name": "รวมผลทุก chunk1",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        3296,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"mode\": $('ตรวจสอบ Input Mode').item.json.mode, \"filename\": $('แบ่ง Chunk + Doc Metadata1').first().json.original_filename, \"file_category\": $('แบ่ง Chunk + Doc Metadata1').first().json.file_category, \"chunks_total\": $('แบ่ง Chunk + Doc Metadata1').all().length, \"doc_type\": $('แบ่ง Chunk + Doc Metadata1').first().json.doc_meta.doc_type, \"department\": $('แบ่ง Chunk + Doc Metadata1').first().json.doc_meta.department, \"faculty\": $('แบ่ง Chunk + Doc Metadata1').first().json.doc_meta.faculty, \"topic\": $('แบ่ง Chunk + Doc Metadata1').first().json.doc_meta.topic, \"keywords\": $('แบ่ง Chunk + Doc Metadata1').first().json.doc_meta.keywords } }}",
+        "options": {}
+      },
+      "id": "62c6604f-0f1b-4fb7-beb6-a6c56e16eec4",
+      "name": "ตอบกลับ Success1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3520,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"ไม่สามารถสกัดข้อความได้\", \"filename\": $('ตรวจสอบ Input Mode').item.json.original_filename, \"file_category\": $('ตรวจสอบ Input Mode').item.json.file_category, \"reason\": $('ตรวจสอบ Input Mode').item.json.ocr_able ? \"Mistral OCR extract failed\" : \"ไฟล์ประเภท \" + $('ตรวจสอบ Input Mode').item.json.file_category + \" ไม่มีข้อความ และไม่รองรับ OCR\" } }}",
+        "options": {}
+      },
+      "id": "9a2f21c7-c756-4937-a691-9517c26fe507",
+      "name": "ตอบกลับ Error1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## I'm a note \nhttps://docs.mistral.ai/admin/security-access/api-keys",
+        "width": 496
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2528,
+        32
+      ],
+      "id": "4ec360bf-482c-404a-927c-ca324ef28753",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3-8b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2672,
+        672
+      ],
+      "id": "6b674de8-00da-474c-b613-a7ca490ef2a2",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "frzGvEsdVNUSPPze",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3-8b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        3312,
+        416
+      ],
+      "id": "16239f1c-252b-4070-a614-7fcb262172b5",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "frzGvEsdVNUSPPze",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        3792,
+        480
+      ],
+      "id": "12497e43-ae5c-4d7a-8200-712c9f02c7d1",
+      "name": "Embeddings Mistral Cloud",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "10TE1nFnNS5D8mIj",
+          "name": "Mistral Cloud account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (รับไฟล์/URL)": {
+      "main": [
+        [
+          {
+            "node": "ตรวจสอบ Input Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ตรวจสอบ Input Mode": {
+      "main": [
+        [
+          {
+            "node": "IF: URL mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: URL mode?": {
+      "main": [
+        [
+          {
+            "node": "ดาวน์โหลด URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF: ไฟล์ OCR ได้?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ดาวน์โหลด URL": {
+      "main": [
+        [
+          {
+            "node": "Normalize Binary (URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Binary (URL)": {
+      "main": [
+        [
+          {
+            "node": "IF: ไฟล์ OCR ได้?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: ไฟล์ OCR ได้?": {
+      "main": [
+        [
+          {
+            "node": "Mistral: แปลง Base64",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ตอบกลับ Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral: แปลง Base64": {
+      "main": [
+        [
+          {
+            "node": "Mistral OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral OCR": {
+      "main": [
+        [
+          {
+            "node": "Normalize Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Text": {
+      "main": [
+        [
+          {
+            "node": "มีข้อความไหม? (final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "มีข้อความไหม? (final)": {
+      "main": [
+        [
+          {
+            "node": "AI: Document Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ตอบกลับ Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Chunks": {
+      "main": [
+        [
+          {
+            "node": "รวมผลทุก chunk1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Contextual Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Contextual Summary": {
+      "main": [
+        [
+          {
+            "node": "รวม chunk + context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "รวม chunk + context": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Insert1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Document Metadata1": {
+      "main": [
+        [
+          {
+            "node": "แบ่ง Chunk + Doc Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "แบ่ง Chunk + Doc Metadata1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Insert1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Loader1": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Insert1",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Splitter (no-op)1": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Data Loader1",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "รวมผลทุก chunk1": {
+      "main": [
+        [
+          {
+            "node": "ตอบกลับ Success1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Document Metadata1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Contextual Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Mistral Cloud": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Insert1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "84365cb96a37d13f47ef6bf9b21a123dffc27616cf6818a224105a14e8057f77"
+  }
+}
