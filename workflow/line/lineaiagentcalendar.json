@@ -1,0 +1,1029 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst events = body.events || [];\nconst now = new Date();\nconst dt = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));\nconst pad = n => String(n).padStart(2, '0');\nconst today = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;\nconst tmrDt = new Date(dt.getTime() + 86400000);\nconst tmr = `${tmrDt.getFullYear()}-${pad(tmrDt.getMonth()+1)}-${pad(tmrDt.getDate())}`;\nconst month = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}`;\nconst nextMonthDt = new Date(dt.getFullYear(), dt.getMonth()+1, 1);\nconst nextMonth = `${nextMonthDt.getFullYear()}-${pad(nextMonthDt.getMonth()+1)}`;\n\nreturn events\n  .filter(e => e.type === 'message' && e.message?.type === 'text')\n  .map(e => ({\n    json: {\n      replyToken: e.replyToken,\n      userId: e.source.userId,\n      userMessage: e.message.text,\n      today, tmr, month, nextMonth,\n      year: dt.getFullYear(),\n      beYear: dt.getFullYear() + 543\n    }\n  }));"
+      },
+      "id": "20897cae-0729-484c-85c5-0f635c7587ae",
+      "name": "Parse LINE Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=วันนี้คือ: {{ $json.today }}\nพรุ่งนี้คือ: {{ $json.tmr }}\nเดือนนี้คือ: {{ $json.month }}\nเดือนหน้าคือ: {{ $json.nextMonth }}\nปี ค.ศ. ปัจจุบัน: {{ $json.year }} (พ.ศ. {{ $json.beYear }})\n\n==== กฎการแปลงคำว่า เวลา ====\n- \"พรุ่งนี้\" → ใช้วันที่ {{ $json.tmr }} (รูปแบบ YYYY-MM-DD)\n- \"วันนี้\" → ใช้วันที่ {{ $json.today }} (รูปแบบ YYYY-MM-DD)\n- \"เดือนนี้\" → ใช้ queryDate = {{ $json.month }} (รูปแบบ YYYY-MM เท่านั้น ไม่มีวัน)\n- \"เดือนหน้า\" → ใช้ queryDate = {{ $json.nextMonth }} (รูปแบบ YYYY-MM)\n\n==== ตัวอย่างคำสั่ง ====\nตัวอย่าง A: \"พรุ่งนี้ 10 โมงประชุม\"\n{ \"intent\": \"create\", \"title\": \"ประชุม\", \"startDateTime\": \"{{ $json.tmr }}T10:00:00+07:00\", \"endDateTime\": \"{{ $json.tmr }}T11:00:00+07:00\", \"queryDate\": \"{{ $json.tmr }}\" }\n\nตัวอย่าง B: \"พรุ่งนี้มีอะไร\"\n{ \"intent\": \"list\", \"queryDate\": \"{{ $json.tmr }}\" }\n\nตัวอย่าง C: \"วันนี้มีอะไร\"\n{ \"intent\": \"list\", \"queryDate\": \"{{ $json.today }}\" }\n\nตัวอย่าง D: \"เดือนนี้มีอะไร\"\n{ \"intent\": \"list\", \"queryDate\": \"{{ $json.month }}\" }\n\nตัวอย่าง E: \"เดือนนี้ผมมีประชุมหรือนัดอะไรไหม\"\n{ \"intent\": \"list\", \"queryDate\": \"{{ $json.month }}\" }\n\nตัวอย่าง F: \"เดือนหน้ามีอะไร\"\n{ \"intent\": \"list\", \"queryDate\": \"{{ $json.nextMonth }}\" }\n\nตัวอย่าง G: \"เลื่อนประชุมพรุ่งนี้บ่าย 2\"\n{ \"intent\": \"update\", \"originalTitle\": \"ประชุม\", \"queryDate\": \"{{ $json.tmr }}\", \"startDateTime\": \"{{ $json.tmr }}T14:00:00+07:00\", \"endDateTime\": \"{{ $json.tmr }}T15:00:00+07:00\", \"changeTime\": true, \"changeTitle\": false }\n\nตัวอย่าง H: \"ลบประชุมพรุ่งนี้\"\n{ \"intent\": \"delete\", \"originalTitle\": \"ประชุม\", \"queryDate\": \"{{ $json.tmr }}\" }\n\nตัวอย่าง I: \"สวัสดี\"\n{ \"intent\": \"chat\" }\n\nตัวอย่าง J: \"พรุ่งนี้หยุดไหม\"\n{ \"intent\": \"holiday\", \"queryDate\": \"{{ $json.tmr }}\" }\n\nตัวอย่าง K: \"วันนี้เป็นวันหยุดไหม\"\n{ \"intent\": \"holiday\", \"queryDate\": \"{{ $json.today }}\" }\n\nตัวอย่าง L: \"เดือนนี้มีวันหยุดอะไรบ้าง\"\n{ \"intent\": \"holiday\", \"queryDate\": \"{{ $json.month }}\" }\n\nตัวอย่าง M: \"เดือนหน้ามีวันหยุดราชการไหม\"\n{ \"intent\": \"holiday\", \"queryDate\": \"{{ $json.nextMonth }}\" }\n\n==== ข้อความจริงจากผู้ใช้ ====\n\"{{ $json.userMessage }}\"\n\nแปลงเป็น JSON ตอนนี้ (ตอบ JSON อย่างเดียว ห้ามมีคำอธิบาย):",
+        "options": {
+          "systemMessage": "คุณคือ AI Parser แปลงข้อความภาษาไทยเป็น JSON เท่านั้น\n\nFields:\n- intent: \"create\" | \"list\" | \"update\" | \"delete\" | \"holiday\" | \"chat\"\n- title: ชื่อกิจกรรม\n- originalTitle: keyword event เดิม (update/delete)\n- startDateTime: \"YYYY-MM-DDTHH:MM:SS+07:00\"\n- endDateTime: \"YYYY-MM-DDTHH:MM:SS+07:00\"\n- queryDate: รูปแบบ YYYY-MM-DD (วัน) หรือ YYYY-MM (เดือนทั้งเดือน)\n- changeTime: true/false\n- changeTitle: true/false\n\nกฎ:\n1. ตอบ JSON อย่างเดียว\n2. \"เดือนนี้/เดือนหน้า\" → queryDate รูปแบบ YYYY-MM (ห้ามใส่วัน)\n3. \"วันนี้/พรุ่งนี้\" → queryDate รูปแบบ YYYY-MM-DD\n4. \"แก้/เลื่อน\" = update, \"ลบ/ยกเลิก\" = delete, ทักทาย = chat\n5. ถ้าผู้ใช้ถามว่า \"วันหยุด\", \"หยุดไหม\", \"วันนี้หยุดไหม\", \"พรุ่งนี้หยุดไหม\", \"เดือนนี้มีวันหยุดไหม\", \"วันหยุดราชการ\", \"นักขัตฤกษ์\" ให้ intent = \"holiday\""
+        }
+      },
+      "id": "b5f36db5-b7cb-4bcc-86ab-69b4a01da94e",
+      "name": "🤖 Agent 1: Parser",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -432,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json;\nconst prev = $('Parse LINE Event').first().json;\n\nlet aiText = raw.output || raw.text || JSON.stringify(raw);\n\nlet p = { intent: 'chat' };\ntry {\n  let t = String(aiText).replace(/```json\\s*/g, '').replace(/```\\s*/g, '').trim();\n  const i = t.indexOf('{');\n  if (i !== -1) p = JSON.parse(t.substring(i).replace(/,\\s*([\\}\\]])/g, '$1'));\n} catch (e) {}\n\nconst validIntents = ['create', 'list', 'update', 'delete', 'holiday', 'chat'];\nif (!validIntents.includes(p.intent)) p.intent = 'chat';\n\nconst msg = String(prev.userMessage || '').toLowerCase();\n\n// แก้ปี พ.ศ. ที่ AI อาจคืนมาเป็น 2569-xx-xx ให้เป็น ค.ศ. 2026-xx-xx\nfunction convertBE(value) {\n  if (!value || typeof value !== 'string') return value || '';\n  return value.replace(/^(25\\d{2})(-\\d{2}(?:-\\d{2})?)(.*)$/, (_, y, rest, tail) => `${Number(y) - 543}${rest}${tail}`);\n}\np.queryDate = convertBE(p.queryDate);\np.startDateTime = convertBE(p.startDateTime);\np.endDateTime = convertBE(p.endDateTime);\n\n// Safety net for date keywords\nif (msg.includes('เดือนนี้') && p.queryDate !== prev.month) {\n  p.queryDate = prev.month;\n}\nif (msg.includes('เดือนหน้า') && p.queryDate !== prev.nextMonth) {\n  p.queryDate = prev.nextMonth;\n}\nif (msg.includes('พรุ่งนี้') && p.queryDate === prev.today) {\n  p.queryDate = prev.tmr;\n}\nif (msg.includes('วันนี้') && p.queryDate === prev.tmr) {\n  p.queryDate = prev.today;\n}\n\n// Safety net for holiday intent\nconst holidayWords = ['วันหยุด', 'หยุดไหม', 'หยุดหรือเปล่า', 'หยุดมั้ย', 'วันหยุดราชการ', 'นักขัตฤกษ์'];\nif (holidayWords.some(w => msg.includes(w))) {\n  p.intent = 'holiday';\n  if (!p.queryDate) p.queryDate = prev.today;\n}\n\n// ถ้าถามรายการ แต่มีคำว่า \"มีอะไร\" ยังคง list ตามเดิม\n// Build queryStartDate / queryEndDate (รองรับทั้ง YYYY-MM-DD และ YYYY-MM)\nlet queryStartDate = '', queryEndDate = '';\nlet isMonthQuery = false;\nif (p.queryDate) {\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(p.queryDate)) {\n    // วันเดียว: ใช้ช่วง 00:00 ถึงวันถัดไป 00:00 เพื่อรองรับ all-day event ของ Google Calendar\n    queryStartDate = `${p.queryDate}T00:00:00+07:00`;\n    const [yr, mo, da] = p.queryDate.split('-').map(Number);\n    const next = new Date(yr, mo - 1, da + 1);\n    const pad = n => String(n).padStart(2, '0');\n    queryEndDate = `${next.getFullYear()}-${pad(next.getMonth()+1)}-${pad(next.getDate())}T00:00:00+07:00`;\n  } else if (/^\\d{4}-\\d{2}$/.test(p.queryDate)) {\n    // ทั้งเดือน\n    const [yr, mo] = p.queryDate.split('-').map(Number);\n    const pad = n => String(n).padStart(2, '0');\n    const nextMonth = new Date(yr, mo, 1);\n    queryStartDate = `${p.queryDate}-01T00:00:00+07:00`;\n    queryEndDate = `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth()+1)}-${pad(nextMonth.getDate())}T00:00:00+07:00`;\n    isMonthQuery = true;\n  }\n}\n\nreturn [{ json: {\n  ...prev,\n  intent: p.intent,\n  title: p.title || '',\n  originalTitle: p.originalTitle || '',\n  startDateTime: p.startDateTime || '',\n  endDateTime: p.endDateTime || '',\n  queryDate: p.queryDate || '',\n  queryStartDate, queryEndDate, isMonthQuery,\n  changeTime: p.changeTime === true,\n  changeTitle: p.changeTitle === true\n}}];"
+      },
+      "id": "b2af88e4-167d-401e-a267-7fa0d10b0ae9",
+      "name": "Extract Parser JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d77284b6-a764-419a-9444-45e8fb79e4f5"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "03f445c4-e579-413d-a9e6-87fe96ec3eb5"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5c956bd0-2e20-4158-bfaf-69c4e0a7568a"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b62bdc47-de66-4448-8e95-1e7507694ae9"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ddf9e56d-637b-4050-a4f6-f5993a7690df"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "holiday",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "03db6d1b-16f3-4ffe-9357-0937a40592c8"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "460e1b40-09d7-48cd-99fd-33ace85ba3d7",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        0,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "start": "={{ $json.startDateTime }}",
+        "end": "={{ $json.endDateTime }}",
+        "additionalFields": {
+          "description": "=[LINE:{{ $json.userId }}]",
+          "summary": "={{ $json.title }}"
+        }
+      },
+      "id": "11892ecb-6d2f-4a3f-92ea-e2d45edd142d",
+      "name": "Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        -96
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Extract Parser JSON').first().json;\nconst e = $json;\nlet timeStr = '';\nif (e.start?.dateTime) {\n  timeStr = new Date(e.start.dateTime).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' });\n}\nreturn [{ json: {\n  actionResult: `สร้างกิจกรรม \"${e.summary || p.title}\" เวลา ${timeStr} เรียบร้อย`,\n  replyToken: p.replyToken,\n  intent: 'create'\n}}];"
+      },
+      "id": "c16ed008-aea0-4e9b-81b5-fc0ff17dfd7c",
+      "name": "Build Create Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $json.queryStartDate }}",
+        "timeMax": "={{ $json.queryEndDate }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "864fa640-d69a-407c-96a4-11cdcbb9288f",
+      "name": "Get Events (List)",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        112
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all().map(i => i.json).filter(j => j && j.id);\nconst p = $('Extract Parser JSON').first().json;\nconst tag = `[LINE:${p.userId}]`;\nconst filtered = events.filter(e => String(e.description || '').includes(tag));\n\nconst isMonth = !!p.isMonthQuery;\nconst label = isMonth ? 'เดือน' : 'วันที่';\n\nlet text;\nif (filtered.length === 0) {\n  text = `ไม่พบกิจกรรม${label} ${p.queryDate}`;\n} else {\n  const lines = filtered.map((e, i) => {\n    const s = e.start?.dateTime || e.start?.date;\n    if (!s) return `${i+1}. (ไม่ทราบเวลา) — ${e.summary || '(ไม่มีหัวข้อ)'}`;\n    const d = new Date(s);\n    if (isMonth) {\n      const datePart = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', timeZone: 'Asia/Bangkok' });\n      const timePart = e.start.dateTime ? d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) : 'ทั้งวัน';\n      return `${i+1}. ${datePart} ${timePart} — ${e.summary || '(ไม่มีหัวข้อ)'}`;\n    } else {\n      const time = e.start.dateTime ? d.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\n      return `${i+1}. ${time} — ${e.summary || '(ไม่มีหัวข้อ)'}`;\n    }\n  });\n  text = `กิจกรรม${label} ${p.queryDate}:\\n${lines.join('\\n')}`;\n}\nreturn [{ json: { actionResult: text, replyToken: p.replyToken, intent: 'list' } }];"
+      },
+      "id": "faf7c959-b10c-42be-a6f9-cee472bbb57b",
+      "name": "Format List Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $json.queryStartDate }}",
+        "timeMax": "={{ $json.queryEndDate }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "0e3263dc-d3da-4678-91f8-9b4e40e218da",
+      "name": "Get Events (Update)",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all().map(i => i.json).filter(j => j && j.id);\nconst p = $('Extract Parser JSON').first().json;\nconst tag = `[LINE:${p.userId}]`;\nconst kw = String(p.originalTitle || '').trim().toLowerCase();\nconst queryDate = p.queryDate || '';\n\nlet userEvents = events.filter(e => String(e.description || '').includes(tag));\n\nif (queryDate) {\n  userEvents = userEvents.filter(e => {\n    const d = (e.start?.dateTime || e.start?.date || '').substring(0, 10);\n    return d.startsWith(queryDate);\n  });\n}\n\nif (userEvents.length === 0) {\n  return [{ json: { canProceed: false, actionResult: `ไม่พบกิจกรรมในช่วง ${queryDate} ของคุณ`, replyToken: p.replyToken, intent: 'update' }}];\n}\n\nlet matches = userEvents;\nif (kw) matches = matches.filter(e => String(e.summary || '').toLowerCase().includes(kw));\n\nif (matches.length === 0) {\n  const list = userEvents.map((e, i) => {\n    const t = e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\n    return `${i+1}. ${t} — ${e.summary || '(ไม่มีหัวข้อ)'}`;\n  }).join('\\n');\n  return [{ json: { canProceed: false, actionResult: `ไม่พบ \"${p.originalTitle}\" ในช่วง ${queryDate}\\n\\nกิจกรรมที่มี:\\n${list}`, replyToken: p.replyToken, intent: 'update' }}];\n}\n\nif (matches.length > 1) {\n  const list = matches.map((e, i) => {\n    const t = e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\n    return `${i+1}. ${t} — ${e.summary}`;\n  }).join('\\n');\n  return [{ json: { canProceed: false, actionResult: `พบหลายรายการ ระบุให้ชัดกว่านี้:\\n${list}`, replyToken: p.replyToken, intent: 'update' }}];\n}\n\nconst e = matches[0];\nconst newTitle = p.changeTitle ? p.title : (e.summary || '');\nconst newStart = p.changeTime ? p.startDateTime : (e.start?.dateTime || e.start?.date);\nconst newEnd = p.changeTime ? p.endDateTime : (e.end?.dateTime || e.end?.date);\n\nreturn [{ json: { canProceed: true, eventId: e.id, newTitle, newStart, newEnd, oldTitle: e.summary, replyToken: p.replyToken, intent: 'update' }}];"
+      },
+      "id": "7477e5a0-a92f-4a9a-998f-ab78562554a3",
+      "name": "Find Match (Update)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.canProceed }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ac092bf0-34c3-4210-81bc-86e02f1db3f3",
+      "name": "IF Update Match",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "eventId": "={{ $json.eventId }}",
+        "updateFields": {
+          "end": "={{ $json.newEnd }}",
+          "start": "={{ $json.newStart }}",
+          "summary": "={{ $json.newTitle }}"
+        }
+      },
+      "id": "8c72a4c6-e390-41cb-b542-3a2a2af434e2",
+      "name": "Update Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        256
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = $json;\nconst t = u.start?.dateTime ? new Date(u.start.dateTime).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short', timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\nreturn [{ json: { actionResult: `อัปเดต event \"${u.summary}\" เวลา ${t} เรียบร้อย`, replyToken: $('Find Match (Update)').first().json.replyToken, intent: 'update' }}];"
+      },
+      "id": "5d2ff5cb-3f0c-4b04-95c0-42003b734a06",
+      "name": "Build Update Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $json.queryStartDate }}",
+        "timeMax": "={{ $json.queryEndDate }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "f2ef227b-1076-48e0-a89c-de466aadb845",
+      "name": "Get Events (Delete)",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        512
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all().map(i => i.json).filter(j => j && j.id);\nconst p = $('Extract Parser JSON').first().json;\nconst tag = `[LINE:${p.userId}]`;\nconst kw = String(p.originalTitle || '').trim().toLowerCase();\nconst queryDate = p.queryDate || '';\n\nlet userEvents = events.filter(e => String(e.description || '').includes(tag));\n\nif (queryDate) {\n  userEvents = userEvents.filter(e => {\n    const d = (e.start?.dateTime || e.start?.date || '').substring(0, 10);\n    return d.startsWith(queryDate);\n  });\n}\n\nif (userEvents.length === 0) {\n  return [{ json: { canProceed: false, actionResult: `ไม่พบกิจกรรมในช่วง ${queryDate} ไม่มีอะไรให้ลบ`, replyToken: p.replyToken, intent: 'delete' }}];\n}\n\nlet matches = userEvents;\nif (kw) matches = matches.filter(e => String(e.summary || '').toLowerCase().includes(kw));\n\nif (matches.length === 0) {\n  const list = userEvents.map((e, i) => {\n    const t = e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\n    return `${i+1}. ${t} — ${e.summary || '(ไม่มีหัวข้อ)'}`;\n  }).join('\\n');\n  return [{ json: { canProceed: false, actionResult: `ไม่พบ \"${p.originalTitle}\"\\n\\nกิจกรรมที่มี:\\n${list}`, replyToken: p.replyToken, intent: 'delete' }}];\n}\n\nconst m = matches[0];\nconst t = m.start?.dateTime ? new Date(m.start.dateTime).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short', timeZone:'Asia/Bangkok'}) : 'ทั้งวัน';\n\nreturn [{ json: { canProceed: true, eventId: m.id, deletedTitle: m.summary, deletedTime: t, multipleMatches: matches.length > 1, matchCount: matches.length, replyToken: p.replyToken, intent: 'delete' }}];"
+      },
+      "id": "6de2b54c-c418-4e9d-a0b3-e8eb4e9d5bc6",
+      "name": "Find Match (Delete)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.canProceed }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "84c616a5-0202-41fe-a27a-25619f05c9d9",
+      "name": "IF Delete Match",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "eventId": "={{ $json.eventId }}",
+        "options": {}
+      },
+      "id": "b470c9cc-fb8e-467d-996a-398a6c05b1dc",
+      "name": "Delete Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        448
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const m = $('Find Match (Delete)').first().json;\nreturn [{ json: { actionResult: `ลบ event \"${m.deletedTitle}\" เวลา ${m.deletedTime} เรียบร้อย`, replyToken: m.replyToken, intent: 'delete' }}];"
+      },
+      "id": "94963526-1e09-4d5d-8be8-f534c75ac240",
+      "name": "Build Delete Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "actionResult",
+              "value": "=ผู้ใช้ทักทายหรือคุยทั่วไป ไม่มีการดำเนินการกับ Calendar ตอบให้เป็นมิตร",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "replyToken",
+              "value": "={{ $json.replyToken }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "intent",
+              "value": "chat",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "532c1a4f-0773-4638-b7e7-1d4b2eaa17ab",
+      "name": "Build Chat Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=ข้อความจากผู้ใช้: \"{{ $('Extract Parser JSON').first().json.userMessage }}\"\n\nผลของการดำเนินการ:\n{{ $json.actionResult }}\n\nIntent: {{ $json.intent }}",
+        "options": {
+          "systemMessage": "คุณคือ AI ที่สื่อสารด้วยภาษาไทยเป็นมิตรและสุภาพใน LINE chat\n\nรับ ข้อความจากผู้ใช้ + ผลของการดำเนินการ แล้วเขียนข้อความตอบกลับ\n\nแนวทาง:\n- กระชับ 1-3 บรรทัด\n- ใช้ emoji 1-2 ตัว\n- ลงท้าย ค่ะ\n- สำเร็จ → ✅ ยืนยันสั้น ๆ ด้วยความยินดี\n- ไม่พบ/ผิดพลาด → ขอโทษและแนะนำให้ลองใหม่\n- chat → ตอบเป็นเพื่อนคุย\n\nตอบเฉพาะข้อความที่จะส่งให้ผู้ใช้ ห้ามใส่ \"นี่คือคำตอบ\" หรืออะไรทำนองนั้น\n- holiday → สรุปผลวันหยุดให้ชัดเจน ถ้าพบวันหยุดให้บอกชื่อวันหยุด ถ้าไม่พบให้บอกว่าไม่พบวันหยุดในช่วงดังกล่าว"
+        }
+      },
+      "id": "666dc30e-d6df-48da-b382-8287a992ec50",
+      "name": "🤖 Agent 2: Composer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1344,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replyToken\": \"{{ $('Parse LINE Event').first().json.replyToken }}\",\n  \"messages\": [{ \"type\": \"text\", \"text\": {{ JSON.stringify($json.output || $json.text) }} }]\n}",
+        "options": {}
+      },
+      "id": "31120359-c7ce-4967-a547-e77176e4ebd5",
+      "name": "Send LINE Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1744,
+        288
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "ksxSP8NZIi1MlQ7j",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/en.th.official%23holiday%40group.v.calendar.google.com/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{ $json.queryStartDate }}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{ $json.queryEndDate }}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "orderBy",
+              "value": "startTime"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "985eb1cf-9ccb-4dd9-9e43-04727fef170d",
+      "name": "Get Holidays (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        896
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "B3P2561pwVLp9gpq",
+          "name": "Google Calendar OAuth2 API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Extract Parser JSON').first().json;\nconst rawItems = $input.all().map(i => i.json);\n\nlet holidays = [];\nlet errorText = '';\n\n// HTTP Request node อาจคืน error เมื่อ continueOnFail = true\nif (rawItems.length === 1 && rawItems[0]?.error) {\n  errorText = String(rawItems[0].error.message || rawItems[0].error || 'ไม่สามารถอ่านปฏิทินวันหยุดได้');\n}\n\n// กรณี HTTP Request คืน items อยู่ใน json.items\nif (rawItems.length === 1 && Array.isArray(rawItems[0].items)) {\n  holidays = rawItems[0].items;\n} else {\n  holidays = rawItems.filter(j => j && (j.id || j.summary));\n}\n\nconst isMonth = !!p.isMonthQuery;\nconst label = isMonth ? 'เดือน' : 'วันที่';\n\nlet text = '';\n\nif (errorText) {\n  text = `ไม่สามารถตรวจสอบวันหยุดได้ในขณะนี้\\nสาเหตุ: ${errorText}\\n\\nกรุณาตรวจสอบว่า Google Calendar API เปิดใช้งานแล้ว และ Credential มีสิทธิ์ใช้งาน Calendar API`;\n} else if (holidays.length === 0) {\n  text = `ไม่พบวันหยุด${label} ${p.queryDate}`;\n} else {\n  const lines = holidays.map((e, i) => {\n    const s = e.start?.dateTime || e.start?.date || '';\n    let dateText = '(ไม่ทราบวันที่)';\n\n    if (s) {\n      // all-day event ของ Google ใช้รูปแบบ YYYY-MM-DD\n      const [y, m, d] = s.substring(0, 10).split('-').map(Number);\n      const dt = new Date(y, m - 1, d);\n      dateText = dt.toLocaleDateString('th-TH', {\n        day: '2-digit',\n        month: 'short',\n        year: 'numeric',\n        timeZone: 'Asia/Bangkok'\n      });\n    }\n\n    return `${i + 1}. ${dateText} — ${e.summary || '(ไม่มีชื่อวันหยุด)'}`;\n  });\n\n  text = `วันหยุด${label} ${p.queryDate}:\\n${lines.join('\\n')}`;\n}\n\nreturn [{\n  json: {\n    actionResult: text,\n    replyToken: p.replyToken,\n    intent: 'holiday'\n  }\n}];"
+      },
+      "id": "003f1c2d-c1ad-4910-8d01-f979077605b6",
+      "name": "Format Holiday Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-agent",
+        "options": {}
+      },
+      "id": "057afcd2-4f5b-410e-a455-af295f62d903",
+      "name": "LINE Webhook2",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        256
+      ],
+      "webhookId": "line-agent-webhook"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3-8b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        720
+      ],
+      "id": "9742a027-f6c1-470b-8a7a-6b505a037957",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "wyeK9wAu7ANzyU8Q",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Parse LINE Event": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 1: Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Agent 1: Parser": {
+      "main": [
+        [
+          {
+            "node": "Extract Parser JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Parser JSON": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Create Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Events (List)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Events (Update)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Events (Delete)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Chat Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Holidays (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event": {
+      "main": [
+        [
+          {
+            "node": "Build Create Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Create Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Events (List)": {
+      "main": [
+        [
+          {
+            "node": "Format List Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format List Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Events (Update)": {
+      "main": [
+        [
+          {
+            "node": "Find Match (Update)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Match (Update)": {
+      "main": [
+        [
+          {
+            "node": "IF Update Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Update Match": {
+      "main": [
+        [
+          {
+            "node": "Update Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Event": {
+      "main": [
+        [
+          {
+            "node": "Build Update Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Update Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Events (Delete)": {
+      "main": [
+        [
+          {
+            "node": "Find Match (Delete)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Match (Delete)": {
+      "main": [
+        [
+          {
+            "node": "IF Delete Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Delete Match": {
+      "main": [
+        [
+          {
+            "node": "Delete Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Event": {
+      "main": [
+        [
+          {
+            "node": "Build Delete Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delete Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Chat Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Agent 2: Composer": {
+      "main": [
+        [
+          {
+            "node": "Send LINE Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Holidays (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Format Holiday Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Holiday Result": {
+      "main": [
+        [
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Parse LINE Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 Agent 1: Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🤖 Agent 2: Composer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "68fb2e4c0202508503997aceee2982b2678305921ca38365d187421a5b668ade"
+  }
+}
